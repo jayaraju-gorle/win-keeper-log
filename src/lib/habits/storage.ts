@@ -71,14 +71,28 @@ function getStorage(): StorageLike | null {
 
 type Loose = Partial<
   Record<
-    | "id" | "title" | "description" | "color" | "cadenceType" | "specificDays" | "targetCount"
-    | "targetPeriod" | "intervalDays" | "createdAt" | "archived" | "habitId" | "date" | "completedAt"
-    | "version" | "habits" | "completions" | "lastActiveDate",
+    | "id"
+    | "title"
+    | "description"
+    | "color"
+    | "cadenceType"
+    | "specificDays"
+    | "targetCount"
+    | "targetPeriod"
+    | "intervalDays"
+    | "createdAt"
+    | "archived"
+    | "habitId"
+    | "date"
+    | "completedAt"
+    | "version"
+    | "habits"
+    | "completions"
+    | "lastActiveDate",
     unknown
   >
 >;
-const isObj = (v: unknown): v is Loose =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+const isObj = (v: unknown): v is Loose => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function sanitizeHabit(raw: unknown, today: string): Habit | null {
   if (!isObj(raw)) return null;
@@ -101,7 +115,11 @@ function sanitizeHabit(raw: unknown, today: string): Habit | null {
 
   if (cadenceType === "specific_days") {
     const days = Array.isArray(raw.specificDays)
-      ? [...new Set(raw.specificDays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+      ? [
+          ...new Set(
+            raw.specificDays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6),
+          ),
+        ].sort()
       : [];
     if (days.length === 0) return null;
     habit.cadenceType = "specific_days";
@@ -117,7 +135,12 @@ function sanitizeHabit(raw: unknown, today: string): Habit | null {
   } else if (cadenceType === "interval") {
     // Always accepted regardless of the feature flag, so turning the flag off never deletes data.
     const n = raw.intervalDays;
-    if (!Number.isInteger(n) || (n as number) < MIN_INTERVAL_DAYS || (n as number) > MAX_INTERVAL_DAYS) return null;
+    if (
+      !Number.isInteger(n) ||
+      (n as number) < MIN_INTERVAL_DAYS ||
+      (n as number) > MAX_INTERVAL_DAYS
+    )
+      return null;
     habit.cadenceType = "interval";
     habit.intervalDays = n as number;
   } else if (cadenceType !== "daily") {
@@ -129,7 +152,8 @@ function sanitizeHabit(raw: unknown, today: string): Habit | null {
 function sanitizeCompletion(raw: unknown, today: string): HabitCompletion | null {
   if (!isObj(raw)) return null;
   const { id, habitId, date, completedAt } = raw;
-  if (typeof id !== "string" || typeof habitId !== "string" || !isPlausibleDate(date, today)) return null;
+  if (typeof id !== "string" || typeof habitId !== "string" || !isPlausibleDate(date, today))
+    return null;
   return {
     id,
     habitId,

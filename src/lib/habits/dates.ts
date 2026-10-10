@@ -25,8 +25,13 @@ export function addDays(key: string, n: number): string {
 /** Monday of the ISO week containing `key`. */
 /** Whole calendar days from `a` to `b` (DST-safe). */
 export function daysBetween(a: string, b: string): number {
-  const pa = parseDateKey(a), pb = parseDateKey(b);
-  return Math.round((Date.UTC(pb.getFullYear(), pb.getMonth(), pb.getDate()) - Date.UTC(pa.getFullYear(), pa.getMonth(), pa.getDate())) / 86_400_000);
+  const pa = parseDateKey(a),
+    pb = parseDateKey(b);
+  return Math.round(
+    (Date.UTC(pb.getFullYear(), pb.getMonth(), pb.getDate()) -
+      Date.UTC(pa.getFullYear(), pa.getMonth(), pa.getDate())) /
+      86_400_000,
+  );
 }
 
 export function startOfWeek(key: string): string {

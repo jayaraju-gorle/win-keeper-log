@@ -8,6 +8,9 @@ const FLAGS = {
 
 export type FeatureFlag = keyof typeof FLAGS;
 
-export function isFeatureEnabled(flag: FeatureFlag, env: Partial<Record<FeatureFlag, unknown>> = FLAGS): boolean {
+export function isFeatureEnabled(
+  flag: FeatureFlag,
+  env: Partial<Record<FeatureFlag, unknown>> = FLAGS,
+): boolean {
   return env[flag] === "true" || env[flag] === true;
 }

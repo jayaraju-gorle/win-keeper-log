@@ -25,9 +25,14 @@ export function useHabitTracker() {
     setToday(t);
     setReady(true);
     if (res.status === "migrated") saveState({ ...res.state, lastActiveDate: t });
-    if (res.status === "corrupt") toast.warning("Saved data couldn't be read, so we started fresh. A backup was kept.");
-    if (res.status === "unavailable") toast.error("Browser storage is blocked. Changes won't be kept after you close this tab.");
-    if (res.status === "future") toast.warning("Data was saved by a newer version of this app. Viewing only — changes won't be saved.");
+    if (res.status === "corrupt")
+      toast.warning("Saved data couldn't be read, so we started fresh. A backup was kept.");
+    if (res.status === "unavailable")
+      toast.error("Browser storage is blocked. Changes won't be kept after you close this tab.");
+    if (res.status === "future")
+      toast.warning(
+        "Data was saved by a newer version of this app. Viewing only — changes won't be saved.",
+      );
 
     // Roll over at midnight / when the tab regains focus.
     const tick = () => setToday(toDateKey(new Date()));
@@ -36,7 +41,8 @@ export function useHabitTracker() {
 
     // Another tab changed our data: adopt it so this tab doesn't overwrite it with a stale copy.
     const onStorage = (e: StorageEvent) => {
-      if (e.storageArea !== window.localStorage || (e.key !== STORAGE_KEY && e.key !== null)) return;
+      if (e.storageArea !== window.localStorage || (e.key !== STORAGE_KEY && e.key !== null))
+        return;
       const now = toDateKey(new Date());
       const r = loadState(undefined, now);
       readOnly.current = r.readOnly;
@@ -72,7 +78,10 @@ export function useHabitTracker() {
     (data: HabitInput) =>
       commit((s) => ({
         ...s,
-        habits: [...s.habits, { ...data, id: newId(), createdAt: new Date().toISOString(), archived: false }],
+        habits: [
+          ...s.habits,
+          { ...data, id: newId(), createdAt: new Date().toISOString(), archived: false },
+        ],
       })),
     [commit],
   );
@@ -82,16 +91,18 @@ export function useHabitTracker() {
       commit((s) => ({
         ...s,
         habits: s.habits.map((h) =>
-          h.id === id
-            ? { id: h.id, createdAt: h.createdAt, archived: h.archived, ...data }
-            : h,
+          h.id === id ? { id: h.id, createdAt: h.createdAt, archived: h.archived, ...data } : h,
         ),
       })),
     [commit],
   );
 
   const archiveHabit = useCallback(
-    (id: string) => commit((s) => ({ ...s, habits: s.habits.map((h) => (h.id === id ? { ...h, archived: true } : h)) })),
+    (id: string) =>
+      commit((s) => ({
+        ...s,
+        habits: s.habits.map((h) => (h.id === id ? { ...h, archived: true } : h)),
+      })),
     [commit],
   );
 
@@ -103,7 +114,10 @@ export function useHabitTracker() {
           ...s,
           completions: exists
             ? s.completions.filter((c) => !(c.habitId === habitId && c.date === date))
-            : [...s.completions, { id: newId(), habitId, date, completedAt: new Date().toISOString() }],
+            : [
+                ...s.completions,
+                { id: newId(), habitId, date, completedAt: new Date().toISOString() },
+              ],
         };
       }),
     [commit],

@@ -42,5 +42,12 @@ export type HabitColor = (typeof HABIT_COLORS)[number];
 
 export type HabitInput = Pick<
   Habit,
-  "title" | "description" | "color" | "cadenceType" | "specificDays" | "targetCount" | "targetPeriod" | "intervalDays"
+  | "title"
+  | "description"
+  | "color"
+  | "cadenceType"
+  | "specificDays"
+  | "targetCount"
+  | "targetPeriod"
+  | "intervalDays"
 >;

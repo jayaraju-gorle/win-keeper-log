@@ -47,10 +47,20 @@ function unitStart(unit: StreakInfo["unit"], key: string): string {
 }
 
 function nextUnit(unit: StreakInfo["unit"], start: string, n = 1): string {
-  return unit === "day" ? addDays(start, n) : unit === "week" ? addDays(start, 7 * n) : addMonths(start, n);
+  return unit === "day"
+    ? addDays(start, n)
+    : unit === "week"
+      ? addDays(start, 7 * n)
+      : addMonths(start, n);
 }
 
-function evaluate(habit: Habit, start: string, done: Set<string>, today: string, created: string): UnitStatus {
+function evaluate(
+  habit: Habit,
+  start: string,
+  done: Set<string>,
+  today: string,
+  created: string,
+): UnitStatus {
   const unit = unitOf(habit);
   const isCurrent = unitStart(unit, today) === start;
 
@@ -81,7 +91,10 @@ function evaluate(habit: Habit, start: string, done: Set<string>, today: string,
   return isCurrent ? "pending" : "failed";
 }
 
-export function completionSet(habitId: string, completions: { habitId: string; date: string }[]): Set<string> {
+export function completionSet(
+  habitId: string,
+  completions: { habitId: string; date: string }[],
+): Set<string> {
   const s = new Set<string>();
   for (const c of completions) if (c.habitId === habitId) s.add(c.date);
   return s;
@@ -100,11 +113,17 @@ function computeIntervalStreak(habit: Habit, done: Set<string>, today: string): 
   let firstKey = createdKey(habit);
   for (const d of done) if (d < firstKey) firstKey = d;
   const current = intervalStart(habit, today);
-  let best = 0, run = 0, currentStreak = 0;
+  let best = 0,
+    run = 0,
+    currentStreak = 0;
   for (let u = intervalStart(habit, firstKey); u <= current; u = addDays(u, n)) {
     const end = addDays(u, n);
     let hit = false;
-    for (const d of done) if (d >= u && d < end) { hit = true; break; }
+    for (const d of done)
+      if (d >= u && d < end) {
+        hit = true;
+        break;
+      }
     if (hit) run++;
     else if (u !== current) run = 0;
     best = Math.max(best, run);
@@ -142,7 +161,8 @@ export function computeStreak(habit: Habit, done: Set<string>, today: string): S
 
 export function isDueToday(habit: Habit, done: Set<string>, today: string): boolean {
   if (habit.cadenceType === "daily") return true;
-  if (habit.cadenceType === "specific_days") return (habit.specificDays ?? []).includes(dayOfWeek(today));
+  if (habit.cadenceType === "specific_days")
+    return (habit.specificDays ?? []).includes(dayOfWeek(today));
   if (habit.cadenceType === "interval") {
     // Due until something is logged in the current N-day window.
     const start = intervalStart(habit, today);

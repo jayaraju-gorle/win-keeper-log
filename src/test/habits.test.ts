@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadState, saveState, STORAGE_KEY } from "@/lib/habits/storage";
+import { CORRUPT_BACKUP_KEY, loadState, saveState, STORAGE_KEY } from "@/lib/habits/storage";
 import { completionSet, computeStreak } from "@/lib/habits/streaks";
 import type { Habit } from "@/lib/habits/types";
 
@@ -34,7 +34,7 @@ describe("storage contract", () => {
     const r = loadState(s, "2026-10-10");
     expect(r.status).toBe("corrupt");
     expect(r.state.habits).toEqual([]);
-    expect([...s.m.keys()].some((k) => k.startsWith(`${STORAGE_KEY}__corrupt_`))).toBe(true);
+    expect(s.getItem(CORRUPT_BACKUP_KEY)).toBe("{oops");
   });
   it("migrates unversioned data", () => {
     const s = new MemStore();
@@ -84,5 +84,49 @@ describe("strict streaks", () => {
   });
   it("tracks best streak across a break", () => {
     expect(streak(habit({}), ["2026-09-01", "2026-09-02", "2026-09-03", "2026-10-10"], "2026-10-10")).toMatchObject({ current: 1, best: 3 });
+  });
+});
+
+describe("tampered storage hardening", () => {
+  const TODAY = "2026-10-10";
+  const store = (data: unknown) => {
+    const s = new MemStore();
+    s.setItem(STORAGE_KEY, JSON.stringify({ version: 1, completions: [], lastActiveDate: TODAY, ...(data as object) }));
+    return s;
+  };
+
+  it("drops completions dated before 2000", () => {
+    const r = loadState(store({ habits: [habit({})], completions: [{ id: "c", habitId: "h", date: "0001-01-01" }] }), TODAY);
+    expect(r.state.completions).toHaveLength(0);
+  });
+  it("keeps completions dated 2000-01-01", () => {
+    const r = loadState(store({ habits: [habit({})], completions: [{ id: "c", habitId: "h", date: "2000-01-01" }] }), TODAY);
+    expect(r.state.completions).toHaveLength(1);
+  });
+  it("drops completions more than one day in the future", () => {
+    const r = loadState(store({ habits: [habit({})], completions: [
+      { id: "a", habitId: "h", date: "2026-10-11" },
+      { id: "b", habitId: "h", date: "2026-10-12" },
+    ] }), TODAY);
+    expect(r.state.completions.map((c) => c.date)).toEqual(["2026-10-11"]);
+  });
+  it("drops habits created before 2000", () => {
+    const r = loadState(store({ habits: [habit({ createdAt: "0001-01-01T00:00:00" })] }), TODAY);
+    expect(r.state.habits).toHaveLength(0);
+  });
+  it("keeps only the first habit when ids repeat", () => {
+    const r = loadState(store({ habits: [habit({ title: "First" }), habit({ title: "Second" })] }), TODAY);
+    expect(r.state.habits.map((h) => h.title)).toEqual(["First"]);
+  });
+  it("keeps one backup slot across repeated corruption", () => {
+    const s = new MemStore();
+    s.setItem(STORAGE_KEY, "{bad1");
+    loadState(s, TODAY);
+    expect(loadState(s, TODAY).status).toBe("ok");
+    s.setItem(STORAGE_KEY, "{bad2");
+    loadState(s, TODAY);
+    const backups = [...s.m.keys()].filter((k) => k.includes("__corrupt"));
+    expect(backups).toEqual([CORRUPT_BACKUP_KEY]);
+    expect(s.getItem(CORRUPT_BACKUP_KEY)).toBe("{bad2");
   });
 });

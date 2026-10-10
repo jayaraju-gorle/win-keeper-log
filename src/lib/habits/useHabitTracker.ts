@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { toDateKey } from "./dates";
-import { createEmptyState, loadState, saveState, type LoadStatus } from "./storage";
+import { createEmptyState, loadState, saveState, STORAGE_KEY, type LoadStatus } from "./storage";
 import type { HabitInput, HabitTrackerState } from "./types";
 
 const newId = () =>
@@ -33,9 +33,21 @@ export function useHabitTracker() {
     const tick = () => setToday(toDateKey(new Date()));
     const id = setInterval(tick, 60_000);
     document.addEventListener("visibilitychange", tick);
+
+    // Another tab changed our data: adopt it so this tab doesn't overwrite it with a stale copy.
+    const onStorage = (e: StorageEvent) => {
+      if (e.storageArea !== window.localStorage || (e.key !== STORAGE_KEY && e.key !== null)) return;
+      const now = toDateKey(new Date());
+      const r = loadState(undefined, now);
+      readOnly.current = r.readOnly;
+      setState(r.state);
+      setStatus(r.status);
+    };
+    window.addEventListener("storage", onStorage);
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 

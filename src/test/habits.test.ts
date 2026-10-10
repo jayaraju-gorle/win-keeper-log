@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadState, saveState, STORAGE_KEY } from "./storage";
-import { completionSet, computeStreak } from "./streaks";
-import type { Habit } from "./types";
+import { loadState, saveState, STORAGE_KEY } from "@/lib/habits/storage";
+import { completionSet, computeStreak } from "@/lib/habits/streaks";
+import type { Habit } from "@/lib/habits/types";
 
 class MemStore {
   m = new Map<string, string>();

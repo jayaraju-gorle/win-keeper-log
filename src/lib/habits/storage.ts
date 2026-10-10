@@ -7,19 +7,20 @@
  *   status "ok"          valid v1 data
  *   status "empty"       nothing stored -> fresh empty state
  *   status "migrated"    older/unversioned shape upgraded to v1 (caller should save)
- *   status "corrupt"     unparseable or wrong shape -> raw value copied to a backup
- *                        key (`${STORAGE_KEY}__corrupt_<timestamp>`), fresh state returned
+ *   status "corrupt"     unparseable or wrong shape -> raw value copied to the single
+ *                        CORRUPT_BACKUP_KEY slot, fresh state saved and returned
  *   status "future"      written by a newer app version -> data loaded best-effort but
  *                        readOnly = true so we never overwrite it with a downgraded shape
  *   status "unavailable" localStorage missing/blocked -> in-memory state only
- *   Individual malformed habits/completions are dropped; orphaned and duplicate
+ *   Individual malformed habits/completions are dropped (incl. dates outside
+ *   [MIN_DATE, today+1] and duplicate habit ids); orphaned and duplicate
  *   (habitId,date) completions are removed.
  *
  * saveState(state, storage?) -> SaveResult  (never throws)
  *   { ok: true } or { ok: false, reason: "quota" | "unavailable" | "unknown" }
  *   A single setItem call, so a write is all-or-nothing.
  */
-import { isDateKey, toDateKey } from "./dates";
+import { addDays, isDateKey, toDateKey } from "./dates";
 import {
   HABIT_COLORS,
   type HabitColor,
@@ -30,6 +31,15 @@ import {
 } from "./types";
 
 export const STORAGE_KEY = "habit_tracker_data_v1";
+/** Single backup slot: a repeat corruption overwrites it instead of piling up keys. */
+export const CORRUPT_BACKUP_KEY = `${STORAGE_KEY}__corrupt`;
+/** Earliest accepted date; bounds streak loops against tampered data. */
+export const MIN_DATE = "2000-01-01";
+
+/** A date is plausible if it lies in [MIN_DATE, today + 1] (1 day slack for clock/timezone skew). */
+export function isPlausibleDate(key: unknown, today: string): key is string {
+  return isDateKey(key) && key >= MIN_DATE && key <= addDays(today, 1);
+}
 
 export type LoadStatus = "ok" | "empty" | "migrated" | "corrupt" | "future" | "unavailable";
 export interface LoadResult {
@@ -68,12 +78,13 @@ type Loose = Partial<
 const isObj = (v: unknown): v is Loose =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-function sanitizeHabit(raw: unknown): Habit | null {
+function sanitizeHabit(raw: unknown, today: string): Habit | null {
   if (!isObj(raw)) return null;
   const { id, title, cadenceType, createdAt } = raw;
   if (typeof id !== "string" || !id) return null;
   if (typeof title !== "string" || !title.trim()) return null;
   if (typeof createdAt !== "string" || Number.isNaN(Date.parse(createdAt))) return null;
+  if (!isPlausibleDate(toDateKey(new Date(createdAt)), today)) return null;
   const habit: Habit = {
     id,
     title: title.trim().slice(0, 120),
@@ -107,10 +118,10 @@ function sanitizeHabit(raw: unknown): Habit | null {
   return habit;
 }
 
-function sanitizeCompletion(raw: unknown): HabitCompletion | null {
+function sanitizeCompletion(raw: unknown, today: string): HabitCompletion | null {
   if (!isObj(raw)) return null;
   const { id, habitId, date, completedAt } = raw;
-  if (typeof id !== "string" || typeof habitId !== "string" || !isDateKey(date)) return null;
+  if (typeof id !== "string" || typeof habitId !== "string" || !isPlausibleDate(date, today)) return null;
   return {
     id,
     habitId,
@@ -119,12 +130,19 @@ function sanitizeCompletion(raw: unknown): HabitCompletion | null {
   };
 }
 
-function sanitizeCollections(habitsRaw: unknown[], completionsRaw: unknown[]) {
-  const habits = habitsRaw.map(sanitizeHabit).filter((h): h is Habit => h !== null);
-  const ids = new Set(habits.map((h) => h.id));
+function sanitizeCollections(habitsRaw: unknown[], completionsRaw: unknown[], today: string) {
+  // Duplicate habit ids are dropped (first wins) so React keys and toggles stay unambiguous.
+  const ids = new Set<string>();
+  const habits: Habit[] = [];
+  for (const raw of habitsRaw) {
+    const h = sanitizeHabit(raw, today);
+    if (!h || ids.has(h.id)) continue;
+    ids.add(h.id);
+    habits.push(h);
+  }
   const seen = new Set<string>();
   const completions: HabitCompletion[] = [];
-  for (const c of completionsRaw.map(sanitizeCompletion)) {
+  for (const c of completionsRaw.map((r) => sanitizeCompletion(r, today))) {
     if (!c || !ids.has(c.habitId)) continue;
     const k = `${c.habitId}|${c.date}`;
     if (seen.has(k)) continue;
@@ -142,6 +160,7 @@ export function migrate(raw: unknown, today: string): HabitTrackerState | null {
   const { habits, completions } = sanitizeCollections(
     legacy.habits,
     Array.isArray(legacy.completions) ? legacy.completions : [],
+    today,
   );
   return { version: SCHEMA_VERSION, habits, completions, lastActiveDate: today };
 }
@@ -164,11 +183,14 @@ export function loadState(
 
   const corrupt = (): LoadResult => {
     try {
-      storage.setItem(`${STORAGE_KEY}__corrupt_${Date.now()}`, rawText as string);
+      storage.setItem(CORRUPT_BACKUP_KEY, rawText as string);
     } catch {
       /* best effort backup */
     }
-    return { state: createEmptyState(today), status: "corrupt", readOnly: false };
+    const fresh = createEmptyState(today);
+    // Persist the fresh state now so the next load doesn't re-detect corruption and back up again.
+    saveState(fresh, storage);
+    return { state: fresh, status: "corrupt", readOnly: false };
   };
 
   let parsed: unknown;
@@ -182,7 +204,7 @@ export function loadState(
 
   if (version === SCHEMA_VERSION && isObj(parsed)) {
     if (!Array.isArray(parsed.habits) || !Array.isArray(parsed.completions)) return corrupt();
-    const { habits, completions } = sanitizeCollections(parsed.habits, parsed.completions);
+    const { habits, completions } = sanitizeCollections(parsed.habits, parsed.completions, today);
     const lastActiveDate = isDateKey(parsed.lastActiveDate) ? parsed.lastActiveDate : today;
     return {
       state: { version: SCHEMA_VERSION, habits, completions, lastActiveDate },

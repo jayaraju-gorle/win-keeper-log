@@ -3,7 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DAY_SHORT, WEEK_ORDER } from "@/lib/habits/dates";
-import { HABIT_COLORS, type Habit, type HabitCadenceType, type HabitColor, type HabitInput } from "@/lib/habits/types";
+import { isFeatureEnabled } from "@/lib/flags";
+import {
+  HABIT_COLORS,
+  MAX_INTERVAL_DAYS,
+  MIN_INTERVAL_DAYS,
+  type Habit,
+  type HabitCadenceType,
+  type HabitColor,
+  type HabitInput,
+} from "@/lib/habits/types";
 import { cn } from "@/lib/utils";
 
 const CADENCES: { value: HabitCadenceType; label: string; hint: string }[] = [
@@ -11,6 +20,11 @@ const CADENCES: { value: HabitCadenceType; label: string; hint: string }[] = [
   { value: "specific_days", label: "Specific days", hint: "e.g. weekends" },
   { value: "target_frequency", label: "Times per period", hint: "e.g. twice a week" },
 ];
+const INTERVAL_CADENCE = {
+  value: "interval" as const,
+  label: "Every few days",
+  hint: "e.g. every 3 days",
+};
 
 export function HabitForm({
   initial,
@@ -26,6 +40,12 @@ export function HabitForm({
   const [days, setDays] = useState<number[]>(initial?.specificDays ?? [6, 0]);
   const [count, setCount] = useState(initial?.targetCount ?? 2);
   const [period, setPeriod] = useState<"week" | "month">(initial?.targetPeriod ?? "week");
+  const [intervalDays, setIntervalDays] = useState(initial?.intervalDays ?? 3);
+  // Flag gates creating new interval habits; an existing one stays editable even with the flag off.
+  const cadences =
+    isFeatureEnabled("intervalHabits") || initial?.cadenceType === "interval"
+      ? [...CADENCES, INTERVAL_CADENCE]
+      : CADENCES;
   const [color, setColor] = useState<HabitColor>(initial?.color ?? "tomato");
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +60,7 @@ export function HabitForm({
       data.targetCount = count;
       data.targetPeriod = period;
     }
+    if (cadence === "interval") data.intervalDays = intervalDays;
     onSubmit(data);
   };
 
@@ -64,8 +85,10 @@ export function HabitForm({
 
       <fieldset className="space-y-2">
         <legend className="mb-2 text-sm font-medium">How often?</legend>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {CADENCES.map((c) => (
+        <div
+          className={cn("grid gap-2", cadences.length > 3 ? "sm:grid-cols-2" : "sm:grid-cols-3")}
+        >
+          {cadences.map((c) => (
             <label
               key={c.value}
               className={cn(
@@ -115,12 +138,30 @@ export function HabitForm({
 
       {cadence === "target_frequency" && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center rounded-lg border" role="group" aria-label="Times per period">
-            <Button type="button" variant="ghost" className="h-11 w-11" aria-label="Fewer" onClick={() => setCount(Math.max(1, count - 1))}>
+          <div
+            className="flex items-center rounded-lg border"
+            role="group"
+            aria-label="Times per period"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 w-11"
+              aria-label="Fewer"
+              onClick={() => setCount(Math.max(1, count - 1))}
+            >
               −
             </Button>
-            <output aria-live="polite" className="w-8 text-center font-semibold tabular-nums">{count}</output>
-            <Button type="button" variant="ghost" className="h-11 w-11" aria-label="More" onClick={() => setCount(Math.min(max, count + 1))}>
+            <output aria-live="polite" className="w-8 text-center font-semibold tabular-nums">
+              {count}
+            </output>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 w-11"
+              aria-label="More"
+              onClick={() => setCount(Math.min(max, count + 1))}
+            >
               +
             </Button>
           </div>
@@ -138,6 +179,40 @@ export function HabitForm({
             <option value="week">week</option>
             <option value="month">month</option>
           </select>
+        </div>
+      )}
+
+      {cadence === "interval" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm">Once every</span>
+          <div
+            className="flex items-center rounded-lg border"
+            role="group"
+            aria-label="Days between sessions"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 w-11"
+              aria-label="Fewer days"
+              onClick={() => setIntervalDays(Math.max(MIN_INTERVAL_DAYS, intervalDays - 1))}
+            >
+              −
+            </Button>
+            <output aria-live="polite" className="w-8 text-center font-semibold tabular-nums">
+              {intervalDays}
+            </output>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 w-11"
+              aria-label="More days"
+              onClick={() => setIntervalDays(Math.min(MAX_INTERVAL_DAYS, intervalDays + 1))}
+            >
+              +
+            </Button>
+          </div>
+          <span className="text-sm">days</span>
         </div>
       )}
 

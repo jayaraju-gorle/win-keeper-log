@@ -10,6 +10,7 @@
 import {
   addDays,
   addMonths,
+  daysBetween,
   dayOfWeek,
   startOfMonth,
   startOfWeek,
@@ -22,7 +23,7 @@ type UnitStatus = "success" | "failed" | "pending";
 export interface StreakInfo {
   current: number;
   best: number;
-  unit: "day" | "week" | "month";
+  unit: "day" | "week" | "month" | "cycle";
 }
 
 export interface CycleProgress {
@@ -46,10 +47,20 @@ function unitStart(unit: StreakInfo["unit"], key: string): string {
 }
 
 function nextUnit(unit: StreakInfo["unit"], start: string, n = 1): string {
-  return unit === "day" ? addDays(start, n) : unit === "week" ? addDays(start, 7 * n) : addMonths(start, n);
+  return unit === "day"
+    ? addDays(start, n)
+    : unit === "week"
+      ? addDays(start, 7 * n)
+      : addMonths(start, n);
 }
 
-function evaluate(habit: Habit, start: string, done: Set<string>, today: string, created: string): UnitStatus {
+function evaluate(
+  habit: Habit,
+  start: string,
+  done: Set<string>,
+  today: string,
+  created: string,
+): UnitStatus {
   const unit = unitOf(habit);
   const isCurrent = unitStart(unit, today) === start;
 
@@ -80,13 +91,49 @@ function evaluate(habit: Habit, start: string, done: Set<string>, today: string,
   return isCurrent ? "pending" : "failed";
 }
 
-export function completionSet(habitId: string, completions: { habitId: string; date: string }[]): Set<string> {
+export function completionSet(
+  habitId: string,
+  completions: { habitId: string; date: string }[],
+): Set<string> {
   const s = new Set<string>();
   for (const c of completions) if (c.habitId === habitId) s.add(c.date);
   return s;
 }
 
+/** Start of the N-day window containing `key`; windows are anchored on the habit's creation date. */
+function intervalStart(habit: Habit, key: string): string {
+  const n = habit.intervalDays ?? 2;
+  const created = createdKey(habit);
+  return addDays(created, Math.floor(daysBetween(created, key) / n) * n);
+}
+
+/** Interval habits: each N-day window needs at least one completion; the current window is pending until done. */
+function computeIntervalStreak(habit: Habit, done: Set<string>, today: string): StreakInfo {
+  const n = habit.intervalDays ?? 2;
+  let firstKey = createdKey(habit);
+  for (const d of done) if (d < firstKey) firstKey = d;
+  const current = intervalStart(habit, today);
+  let best = 0,
+    run = 0,
+    currentStreak = 0;
+  for (let u = intervalStart(habit, firstKey); u <= current; u = addDays(u, n)) {
+    const end = addDays(u, n);
+    let hit = false;
+    for (const d of done)
+      if (d >= u && d < end) {
+        hit = true;
+        break;
+      }
+    if (hit) run++;
+    else if (u !== current) run = 0;
+    best = Math.max(best, run);
+    if (u === current) currentStreak = run;
+  }
+  return { current: currentStreak, best, unit: "cycle" };
+}
+
 export function computeStreak(habit: Habit, done: Set<string>, today: string): StreakInfo {
+  if (habit.cadenceType === "interval") return computeIntervalStreak(habit, done, today);
   const unit = unitOf(habit);
   const created = createdKey(habit);
   // Treat completions logged before creation (e.g. backfill) as moving the start earlier.
@@ -114,7 +161,14 @@ export function computeStreak(habit: Habit, done: Set<string>, today: string): S
 
 export function isDueToday(habit: Habit, done: Set<string>, today: string): boolean {
   if (habit.cadenceType === "daily") return true;
-  if (habit.cadenceType === "specific_days") return (habit.specificDays ?? []).includes(dayOfWeek(today));
+  if (habit.cadenceType === "specific_days")
+    return (habit.specificDays ?? []).includes(dayOfWeek(today));
+  if (habit.cadenceType === "interval") {
+    // Due until something is logged in the current N-day window.
+    const start = intervalStart(habit, today);
+    for (const d of done) if (d >= start && d <= today) return d === today;
+    return true;
+  }
   // Flexible: due while the cycle target isn't met yet, or if already logged today.
   const p = cycleProgress(habit, done, today);
   return p.done < p.target || done.has(today);

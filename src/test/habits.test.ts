@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isFeatureEnabled } from "@/lib/flags";
 import { CORRUPT_BACKUP_KEY, loadState, saveState, STORAGE_KEY } from "@/lib/habits/storage";
 import { completionSet, computeStreak } from "@/lib/habits/streaks";
 import type { Habit } from "@/lib/habits/types";
@@ -128,5 +129,31 @@ describe("tampered storage hardening", () => {
     const backups = [...s.m.keys()].filter((k) => k.includes("__corrupt"));
     expect(backups).toEqual([CORRUPT_BACKUP_KEY]);
     expect(s.getItem(CORRUPT_BACKUP_KEY)).toBe("{bad2");
+  });
+});
+
+describe("interval habits (flagged)", () => {
+  const every3 = habit({ cadenceType: "interval", intervalDays: 3, createdAt: "2026-10-01T08:00:00" });
+  it("counts consecutive 3-day windows with a completion", () => {
+    // windows: 01-03, 04-06, 07-09, 10-12 (current, pending)
+    expect(streak(every3, ["2026-10-02", "2026-10-05", "2026-10-09"], "2026-10-10").current).toBe(3);
+  });
+  it("resets to 0 when a 3-day window is missed", () => {
+    expect(streak(every3, ["2026-10-02", "2026-10-09"], "2026-10-10").current).toBe(1);
+  });
+  it("is dropped on load when intervalDays is outside 2-14", () => {
+    const s = new MemStore();
+    s.setItem(STORAGE_KEY, JSON.stringify({ version: 1, habits: [habit({ cadenceType: "interval", intervalDays: 30 })], completions: [] }));
+    expect(loadState(s, "2026-10-10").state.habits).toHaveLength(0);
+  });
+  it("still loads with the flag off", () => {
+    const s = new MemStore();
+    s.setItem(STORAGE_KEY, JSON.stringify({ version: 1, habits: [every3], completions: [] }));
+    expect(isFeatureEnabled("intervalHabits", {})).toBe(false);
+    expect(loadState(s, "2026-10-10").state.habits).toHaveLength(1);
+  });
+  it("flag turns on only for the string 'true'", () => {
+    expect(isFeatureEnabled("intervalHabits", { intervalHabits: "true" })).toBe(true);
+    expect(isFeatureEnabled("intervalHabits", { intervalHabits: "1" })).toBe(false);
   });
 });

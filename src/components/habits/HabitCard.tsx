@@ -10,6 +10,7 @@ function scheduleLabel(habit: Habit, done: Set<string>, today: string) {
   if (habit.cadenceType === "daily") return "Every day";
   if (habit.cadenceType === "specific_days")
     return WEEK_ORDER.filter((d) => habit.specificDays?.includes(d)).map((d) => DAY_SHORT[d]).join(" & ");
+  if (habit.cadenceType === "interval") return `Every ${habit.intervalDays} days`;
   const p = cycleProgress(habit, done, today);
   return `${p.done}/${p.target} ${p.label}`;
 }

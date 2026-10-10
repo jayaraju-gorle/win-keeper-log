@@ -23,6 +23,8 @@
 import { addDays, isDateKey, toDateKey } from "./dates";
 import {
   HABIT_COLORS,
+  MAX_INTERVAL_DAYS,
+  MIN_INTERVAL_DAYS,
   type HabitColor,
   SCHEMA_VERSION,
   type Habit,
@@ -70,7 +72,7 @@ function getStorage(): StorageLike | null {
 type Loose = Partial<
   Record<
     | "id" | "title" | "description" | "color" | "cadenceType" | "specificDays" | "targetCount"
-    | "targetPeriod" | "createdAt" | "archived" | "habitId" | "date" | "completedAt"
+    | "targetPeriod" | "intervalDays" | "createdAt" | "archived" | "habitId" | "date" | "completedAt"
     | "version" | "habits" | "completions" | "lastActiveDate",
     unknown
   >
@@ -112,6 +114,12 @@ function sanitizeHabit(raw: unknown, today: string): Habit | null {
     habit.cadenceType = "target_frequency";
     habit.targetCount = count as number;
     habit.targetPeriod = period;
+  } else if (cadenceType === "interval") {
+    // Always accepted regardless of the feature flag, so turning the flag off never deletes data.
+    const n = raw.intervalDays;
+    if (!Number.isInteger(n) || (n as number) < MIN_INTERVAL_DAYS || (n as number) > MAX_INTERVAL_DAYS) return null;
+    habit.cadenceType = "interval";
+    habit.intervalDays = n as number;
   } else if (cadenceType !== "daily") {
     return null;
   }

@@ -22,6 +22,7 @@
 import { isDateKey, toDateKey } from "./dates";
 import {
   HABIT_COLORS,
+  type HabitColor,
   SCHEMA_VERSION,
   type Habit,
   type HabitCompletion,
@@ -83,7 +84,7 @@ function sanitizeHabit(raw: unknown): Habit | null {
   if (typeof raw.description === "string" && raw.description.trim())
     habit.description = raw.description.trim().slice(0, 500);
   if (typeof raw.color === "string" && (HABIT_COLORS as readonly string[]).includes(raw.color))
-    habit.color = raw.color as Habit["color"];
+    habit.color = raw.color as HabitColor;
 
   if (cadenceType === "specific_days") {
     const days = Array.isArray(raw.specificDays)

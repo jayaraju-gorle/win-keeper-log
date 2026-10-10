@@ -17,7 +17,7 @@ export function HabitForm({
   onSubmit,
   onCancel,
 }: {
-  initial?: Habit;
+  initial?: Habit | undefined;
   onSubmit: (data: HabitInput) => void;
   onCancel: () => void;
 }) {

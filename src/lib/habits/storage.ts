@@ -56,7 +56,15 @@ function getStorage(): StorageLike | null {
   }
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> =>
+type Loose = Partial<
+  Record<
+    | "id" | "title" | "description" | "color" | "cadenceType" | "specificDays" | "targetCount"
+    | "targetPeriod" | "createdAt" | "archived" | "habitId" | "date" | "completedAt"
+    | "version" | "habits" | "completions" | "lastActiveDate",
+    unknown
+  >
+>;
+const isObj = (v: unknown): v is Loose =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 function sanitizeHabit(raw: unknown): Habit | null {

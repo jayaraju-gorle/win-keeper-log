@@ -7,7 +7,7 @@ export function toDateKey(d: Date): string {
 }
 
 export function parseDateKey(key: string): Date {
-  const [y, m, d] = key.split("-").map(Number);
+  const [y = 1970, m = 1, d = 1] = key.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 

@@ -28,7 +28,7 @@ export function HabitForm({
   const [days, setDays] = useState<number[]>(initial?.specificDays ?? [6, 0]);
   const [count, setCount] = useState(initial?.targetCount ?? 2);
   const [period, setPeriod] = useState<"week" | "month">(initial?.targetPeriod ?? "week");
-  const [interval, setInterval] = useState(initial?.intervalDays ?? 3);
+  const [intervalDays, setIntervalDays] = useState(initial?.intervalDays ?? 3);
   // Flag gates creating new interval habits; an existing one stays editable even with the flag off.
   const cadences =
     isFeatureEnabled("intervalHabits") || initial?.cadenceType === "interval" ? [...CADENCES, INTERVAL_CADENCE] : CADENCES;
@@ -46,7 +46,7 @@ export function HabitForm({
       data.targetCount = count;
       data.targetPeriod = period;
     }
-    if (cadence === "interval") data.intervalDays = interval;
+    if (cadence === "interval") data.intervalDays = intervalDays;
     onSubmit(data);
   };
 
@@ -152,11 +152,11 @@ export function HabitForm({
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm">Once every</span>
           <div className="flex items-center rounded-lg border" role="group" aria-label="Days between sessions">
-            <Button type="button" variant="ghost" className="h-11 w-11" aria-label="Fewer days" onClick={() => setInterval(Math.max(MIN_INTERVAL_DAYS, interval - 1))}>
+            <Button type="button" variant="ghost" className="h-11 w-11" aria-label="Fewer days" onClick={() => setIntervalDays(Math.max(MIN_INTERVAL_DAYS, intervalDays - 1))}>
               −
             </Button>
-            <output aria-live="polite" className="w-8 text-center font-semibold tabular-nums">{interval}</output>
-            <Button type="button" variant="ghost" className="h-11 w-11" aria-label="More days" onClick={() => setInterval(Math.min(MAX_INTERVAL_DAYS, interval + 1))}>
+            <output aria-live="polite" className="w-8 text-center font-semibold tabular-nums">{intervalDays}</output>
+            <Button type="button" variant="ghost" className="h-11 w-11" aria-label="More days" onClick={() => setIntervalDays(Math.min(MAX_INTERVAL_DAYS, intervalDays + 1))}>
               +
             </Button>
           </div>
